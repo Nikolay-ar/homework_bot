@@ -115,11 +115,11 @@ def check_tokens():
     if TELEGRAM_TOKEN is None:
         tokens_bool = False
         logging.critical('Отсутствует обязательная переменная окружения: '
-                        '"TELEGRAM_TOKEN" Программа остановлена.')
+                         '"TELEGRAM_TOKEN" Программа остановлена.')
     if TELEGRAM_CHAT_ID is None:
         tokens_bool = False
         logging.critical('Отсутствует обязательная переменная окружения: '
-                        '"TELEGRAM_CHAT_ID" Программа остановлена.')
+                         '"TELEGRAM_CHAT_ID" Программа остановлена.')
     return tokens_bool
 
 
