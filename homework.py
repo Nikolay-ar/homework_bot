@@ -15,7 +15,7 @@ PRACTICUM_TOKEN = os.getenv('TOKEN_HW')
 TELEGRAM_TOKEN = os.getenv('TOKEN_TM')
 TELEGRAM_CHAT_ID = os.getenv('ID_N')
 
-RETRY_TIME = 60*10
+RETRY_TIME = 60 * 10
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -45,10 +45,9 @@ class UndocumentedStatusError(Exception):
     """Недокументированный статус."""
 
 
-
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат.
-     На вход два параметра: экземпляр класса Bot и строка с текстом сообщения.
+    На вход два параметра: экземпляр класса Bot и строка с текстом сообщения.
     """
     try:
         bot.send_message(TELEGRAM_CHAT_ID, message)
@@ -57,10 +56,9 @@ def send_message(bot, message):
         logging.error(
             f'Сообщение в Telegram не отправлено: {telegram_error}')
 
+
 def get_api_answer(current_timestamp):
-    """Сделать запрос к API, вернуть
-    ответ API, преобразовав его из формата JSON к типам данных Python.
-    """
+    """Сделать запрос к API, вернуть."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
     response = requests.get(ENDPOINT, headers=HEADERS, params=params)
@@ -68,6 +66,7 @@ def get_api_answer(current_timestamp):
         logging.error('Эндпоинт не доступен')
         raise TheAnswerIsNot200Error('Эндпоинт не доступен')
     return response.json()
+
 
 def check_response(response):
     """
@@ -87,6 +86,7 @@ def check_response(response):
                         'не является списком')
     return response.get('homeworks')
 
+
 def parse_status(homework):
     """Извлекает из информации о конкретной домашней работе статус этой работы.
     В случае успеха, функция возвращает подготовленную для отправки в Telegram
@@ -105,24 +105,22 @@ def parse_status(homework):
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
-
 def check_tokens():
-    """Проверка доступности переменных окружения"""
+    """Проверка доступности переменных окружения."""
     tokens_bool = True
     if PRACTICUM_TOKEN is None:
         tokens_bool = False
-        logging.critical('Отсутствует обязательная переменная окружения: '
-                 '"PRACTICUM_TOKEN" Программа принудительно остановлена.')
+        logging.critical('Отсутствует обязательная переменная окружения:'
+                         '"PRACTICUM_TOKEN" Программа остановлена.')
     if TELEGRAM_TOKEN is None:
         tokens_bool = False
         logging.critical('Отсутствует обязательная переменная окружения: '
-                 '"TELEGRAM_TOKEN" Программа принудительно остановлена.')
+                        '"TELEGRAM_TOKEN" Программа остановлена.')
     if TELEGRAM_CHAT_ID is None:
         tokens_bool = False
         logging.critical('Отсутствует обязательная переменная окружения: '
-                 '"TELEGRAM_CHAT_ID" Программа принудительно остановлена.')
+                        '"TELEGRAM_CHAT_ID" Программа остановлена.')
     return tokens_bool
-
 
 
 def main():
@@ -144,8 +142,6 @@ def main():
         bot,
         f'Я начал свою работу: {now.strftime("%d-%m-%Y %H:%M")}')
     current_timestamp = int(time.time())
-
-
     while True:
         try:
             response = get_api_answer(current_timestamp)
