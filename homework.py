@@ -1,12 +1,14 @@
 import os
 import datetime
+import sys
 import time
 import requests
 import telegram
 from dotenv import load_dotenv
 import logging
-
 from telegram import Bot
+
+from exceptions import *
 
 load_dotenv()
 
@@ -15,7 +17,7 @@ PRACTICUM_TOKEN = os.getenv('TOKEN_HW')
 TELEGRAM_TOKEN = os.getenv('TOKEN_TM')
 TELEGRAM_CHAT_ID = os.getenv('ID_N')
 
-RETRY_TIME = 60 * 10
+RETRY_TIME = 60 * 0.1
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -26,46 +28,30 @@ HOMEWORK_STATUSES = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    filename='main.log',
-    format='%(asctime)s, %(funcName)s, %(levelname)s, %(message)s'
-)
-
-
-class TheAnswerIsNot200Error(Exception):
-    """Ответ сервера не равен 200."""
-
-
-class EmptyListError(Exception):
-    """Пустой словарь или список."""
-
-
-class UndocumentedStatusError(Exception):
-    """Недокументированный статус."""
-
 
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат.
     На вход два параметра: экземпляр класса Bot и строка с текстом сообщения.
     """
-    try:
-        bot.send_message(TELEGRAM_CHAT_ID, message)
-        logging.info(f'Сообщение в Telegram отправлено: {message}')
-    except telegram.TelegramError as telegram_error:
-        logging.error(
-            f'Сообщение в Telegram не отправлено: {telegram_error}')
+    bot.send_message(TELEGRAM_CHAT_ID, message)
 
 
 def get_api_answer(current_timestamp):
     """Сделать запрос к API, вернуть."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
-    response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+    try:
+        response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+    except requests.ConnectionError as er:
+        raise (er)
     if response.status_code != 200:
-        logging.error('Эндпоинт не доступен')
-        raise TheAnswerIsNot200Error('Эндпоинт не доступен')
-    return response.json()
+        raise TheAnswerIsNot200Error(
+            f'Эндпоинт {ENDPOINT} с HEADERS: {HEADERS}, с параметрами {params}'
+            f' не доступен и имеет статус кода {response.status_code}')
+    try:
+        return response.json()
+    except ValueError :
+        raise (f'Ответ на запрос {ENDPOINT} не в формате json')
 
 
 def check_response(response):
@@ -75,15 +61,23 @@ def check_response(response):
     домашних работ
     (он может быть и пустым), доступный в ответе API по ключу 'homeworks'
     """
+    if not (isinstance(response, dict)):
+        raise TypeError(f'Ошибка response: '
+                        f'{response} не является словарём')
+    if 'homeworks' not in response:
+        raise KeyError(
+            f'Ошибка '
+            f'В словаре {response} отсутствует ключ: "homeworks"')
+    if 'current_date' not in response:
+        raise KeyError(
+            f'Ошибка '
+            f'В словаре {response} отсутствует ключ: "current_date"')
     homeworks = response['homeworks']
     if homeworks is None:
-        logging.error('Некорректный ответ сервера')
         raise EmptyListError('Некорректный ответ сервера')
-    if type(response.get('homeworks')) != list:
-        logging.error('Ошибка, возвращаемый объект по ключу homeworks '
-                      'не является списком')
-        raise TypeError('Ошибка, возвращаемый объект по ключу homeworks '
-                        'не является списком')
+    if not (isinstance(homeworks, list)):
+        raise TypeError(f'Ошибка возвращаемый объект по ключу homeworks: '
+                        f'{homeworks} не является списком')
     return response.get('homeworks')
 
 
@@ -94,13 +88,10 @@ def parse_status(homework):
     """
     homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
-    if homework_status is None:
-        logging.error(f'Ошибка пустое значение '
-                      f'homework_status: {homework_status}')
-        raise UndocumentedStatusError(
-            f'Ошибка пустое значение homework_status: {homework_status}')
-    if homework_name is None:
-        logging.error(f'Ошибка пустое значение homework_name: {homework_name}')
+    if homework_status not in HOMEWORK_STATUSES:
+        raise KeyError(
+            f'Ошибка '
+            f'В словаре HOMEWORK_STATUSES отсутствует ключ: {homework_status}')
     verdict = HOMEWORK_STATUSES[homework_status]
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
@@ -134,34 +125,65 @@ def main():
         Подождать некоторое время и сделать новый запрос.
                                     time.sleep(RETRY_TIME)
     """
+    logging.basicConfig(
+        level=logging.DEBUG,
+        filename='main.log',
+        format='%(asctime)s, %(funcName)s, %(levelname)s, %(message)s'
+    )
     if not check_tokens():
-        exit()
+        sys.exit('Отсутствует обязательная переменная окружения')
     bot = Bot(token=TELEGRAM_TOKEN)
     now = datetime.datetime.now()
-    send_message(
-        bot,
-        f'Я начал свою работу: {now.strftime("%d-%m-%Y %H:%M")}')
-    current_timestamp = int(time.time())
+    message = f'Я начал свою работу: {now.strftime("%d-%m-%Y %H:%M")}'
+    try:
+        send_message(bot, message)
+        logging.info(f'Сообщение в Telegram отправлено: {message}')
+    except telegram.TelegramError as telegram_error:
+        logging.error(
+            f'Сообщение в Telegram не отправлено: {telegram_error}')
+
+    current_timestamp = int(time.time()) - 60 * 60 *48
     while True:
         try:
+            params = {'from_date': current_timestamp}
+            response = requests.get(ENDPOINT, headers=HEADERS, params=params)
+            if response.status_code != 200:
+                logging.error(f'Эндпоинт {ENDPOINT} с HEADERS: {HEADERS}, '
+                              f'с параметрами {params} не доступен и имеет '
+                              f'статус кода {response.status_code}')
             response = get_api_answer(current_timestamp)
             homeworks_info = check_response(response)
             if len(homeworks_info) == 0:
                 logging.info('Нет работ на проверку')
             elif len(homeworks_info) > 0:
+
+                homework_status = homeworks_info[0].get('status')
+                homework_name = homeworks_info[0].get('homework_name')
+                if homework_status is None:
+                    raise UndocumentedStatusError(
+                        f'Ошибка пустое значение '
+                        f'homework_status: {homework_status}')
+                if homework_name is None:
+                    raise UndocumentedNameError(f'Ошибка пустое значение '
+                                  f'homework_name: {homework_name}')
+
                 message = parse_status(homeworks_info[0])
                 send_message(bot, message)
             else:
                 logging.debug('Статус не изменился')
 
             current_timestamp = int(time.time())
-            time.sleep(RETRY_TIME)
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
+            try:
+                send_message(bot, message)
+            except telegram.TelegramError as telegram_error:
+                logging.error(
+                    f'Сообщение в Telegram не отправлено: {telegram_error}')
+        finally:
             time.sleep(RETRY_TIME)
-
 
 if __name__ == '__main__':
     main()
