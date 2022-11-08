@@ -121,16 +121,7 @@ def check_tokens():
 
 
 def main():
-    """Основная логика работы бота.
-    Последовательность действий должна быть примерно такой:
-        Сделать запрос к API.       get_api_answer
-        Проверить ответ.            check_response
-        Если есть обновления — получить статус работы из обновления
-        и отправить сообщение в Telegram.
-                                    parse_status(homeworks_info[0])
-        Подождать некоторое время и сделать новый запрос.
-                                    time.sleep(RETRY_TIME)
-    """
+    """Основная логика работы бота."""
     logging.basicConfig(
         level=logging.DEBUG,
         filename='main.log',
