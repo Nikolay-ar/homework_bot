@@ -136,7 +136,7 @@ def main():
     start = True
     while True:
         try:
-            if start == True:
+            if start:
                 send_message(bot, message1)
             logging.info(f'Сообщение в Telegram отправлено: {message1}')
             start = False
