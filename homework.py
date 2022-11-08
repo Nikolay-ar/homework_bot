@@ -131,17 +131,15 @@ def main():
         sys.exit('Отсутствует обязательная переменная окружения')
     bot = Bot(token=TELEGRAM_TOKEN)
     now = datetime.datetime.now()
-    message = f'Я начал свою работу: {now.strftime("%d-%m-%Y %H:%M")}'
-    try:
-        send_message(bot, message)
-        logging.info(f'Сообщение в Telegram отправлено: {message}')
-    except telegram.TelegramError as telegram_error:
-        logging.error(
-            f'Сообщение в Telegram не отправлено: {telegram_error}')
-
+    message1 = f'Я начал свою работу: {now.strftime("%d-%m-%Y %H:%M")}'
     current_timestamp = int(time.time()) - 1550000000
+    start = True
     while True:
         try:
+            if start == True:
+                send_message(bot, message1)
+            logging.info(f'Сообщение в Telegram отправлено: {message1}')
+            start = False
             response = get_api_answer(current_timestamp)
             homeworks_info = check_response(response)
             if len(homeworks_info) == 0:
