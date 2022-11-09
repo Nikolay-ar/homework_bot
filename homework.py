@@ -141,7 +141,7 @@ def main():
     bot = Bot(token=TELEGRAM_TOKEN)
     now = datetime.datetime.now()
     message1 = f'Я начал свою работу: {now.strftime("%d-%m-%Y %H:%M")}'
-    current_timestamp = int(time.time()) - 60 * 60 *24
+    current_timestamp = int(time.time()) - 60 * 60 * 24
     start = True
     while True:
         try:
