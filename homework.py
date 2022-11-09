@@ -29,14 +29,16 @@ HOMEWORK_STATUSES = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-log = logging.getLogger("ex")
-
 
 def send_message(bot, message):
     """Отправляет сообщение в Telegram чат.
     На вход два параметра: экземпляр класса Bot и строка с текстом сообщения.
     """
-    bot.send_message(TELEGRAM_CHAT_ID, message)
+    try:
+        bot.send_message(TELEGRAM_CHAT_ID, message)
+    except telegram.TelegramError as telegram_error:
+        raise telegram.TelegramError(
+            f'Сообщение в Telegram не отправлено: {telegram_error}')
 
 
 def get_api_answer(current_timestamp):
@@ -46,15 +48,16 @@ def get_api_answer(current_timestamp):
     try:
         response = requests.get(ENDPOINT, headers=HEADERS, params=params)
     except requests.ConnectionError:
-        raise ConnectionError('Эндпоинт: {ENDPOINT} не доступен')
+        raise ConnectionError(f'Эндпоинт: {ENDPOINT} с HEADERS: {HEADERS},'
+                              f'с параметрами {params} не доступен')
     if response.status_code != 200:
         raise TheAnswerIsNot200Error(
             f'Эндпоинт {ENDPOINT} с HEADERS: {HEADERS}, с параметрами {params}'
             f' не доступен и имеет статус кода {response.status_code}')
     try:
         return response.json()
-    except ValueError:
-        raise ValueError(f'Ответ на запрос {ENDPOINT} не в формате json')
+    except TypeError:
+        raise TypeError(f'Ответ на запрос {ENDPOINT} не в формате json')
 
 
 def check_response(response):
@@ -89,7 +92,10 @@ def parse_status(homework):
     В случае успеха, функция возвращает подготовленную для отправки в Telegram
     строку, содержащую один из вердиктов словаря HOMEWORK_STATUSES
     """
-    homework_name = homework['homework_name']
+    if 'homework_name' not in homework:
+        raise KeyError(
+            f'Ошибка: В словаре {homework} отсутствует ключ: "homework_name"')
+    homework_name = homework.get('homework_name')
     homework_status = homework.get('status')
     if homework_status is None:
         raise UndocumentedStatusError(
@@ -97,8 +103,11 @@ def parse_status(homework):
     if homework_name is None:
         raise UndocumentedNameError(
             f'Ошибка пустое значение homework_name: {homework_name}')
-
-    verdict = HOMEWORK_STATUSES[homework_status]
+    if homework_status not in HOMEWORK_STATUSES:
+        raise KeyError(
+            f'Ошибка: В словаре {HOMEWORK_STATUSES} отсутствует ключ: '
+            f'{homework_status}')
+    verdict = HOMEWORK_STATUSES.get(homework_status)
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -132,7 +141,7 @@ def main():
     bot = Bot(token=TELEGRAM_TOKEN)
     now = datetime.datetime.now()
     message1 = f'Я начал свою работу: {now.strftime("%d-%m-%Y %H:%M")}'
-    current_timestamp = int(time.time()) - 1550000000
+    current_timestamp = int(time.time()) - 60 * 60 *24
     start = True
     while True:
         try:
@@ -155,11 +164,7 @@ def main():
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
-            try:
-                send_message(bot, message)
-            except telegram.TelegramError as telegram_error:
-                logging.error(
-                    f'Сообщение в Telegram не отправлено: {telegram_error}')
+
         finally:
             time.sleep(RETRY_TIME)
 
