@@ -18,7 +18,7 @@ PRACTICUM_TOKEN = os.getenv('TOKEN_HW')
 TELEGRAM_TOKEN = os.getenv('TOKEN_TM')
 TELEGRAM_CHAT_ID = os.getenv('ID_N')
 
-RETRY_TIME = 60 * 0.1
+RETRY_TIME = 60 * 30
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
@@ -56,8 +56,12 @@ def get_api_answer(current_timestamp):
             f' не доступен и имеет статус кода {response.status_code}')
     try:
         return response.json()
-    except TypeError:
-        raise TypeError(f'Ответ на запрос {ENDPOINT} не в формате json')
+    except Exception as er:
+        raise Exception(
+            f'Ошибка {er} при попытке вернуть json запроса к {ENDPOINT} '
+            f'с HEADERS: {HEADERS}, с параметрами {params} имеет статус кода '
+            f'{response.status_code}, ответ имеет следующий контент: '
+            f'{response.content}')
 
 
 def check_response(response):
@@ -142,29 +146,36 @@ def main():
     now = datetime.datetime.now()
     message1 = f'Я начал свою работу: {now.strftime("%d-%m-%Y %H:%M")}'
     current_timestamp = int(time.time()) - 60 * 60 * 24
-    start = True
+    start, send, send1, oldstatus = True, False, False, ''
     while True:
         try:
             if start:
                 send_message(bot, message1)
-            logging.info(f'Сообщение в Telegram отправлено: {message1}')
-            start = False
+                logging.info(f'Сообщение в Telegram отправлено: {message1}')
             response = get_api_answer(current_timestamp)
             homeworks_info = check_response(response)
-            if len(homeworks_info) == 0:
+            if len(homeworks_info) == 0 and send == False:
                 logging.info('Нет работ на проверку')
-            elif len(homeworks_info) > 0:
+                send_message(bot, 'Нет работ на проверку')
+                send = True
+            elif len(homeworks_info) > 0 and \
+                    homeworks_info[0].get('status') != oldstatus:
                 message = parse_status(homeworks_info[0])
                 send_message(bot, message)
+                oldstatus = homeworks_info[0].get('status')
             else:
                 logging.debug('Статус не изменился')
-
+            start = False
             current_timestamp = int(time.time())
+
+        except telegram.TelegramError as telegram_error:
+            logging.error(f'Сообщение в Telegram не отправлено: '
+                          f'{telegram_error}')
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logging.error(message)
-
+            send_message(bot, message)
         finally:
             time.sleep(RETRY_TIME)
 
