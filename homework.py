@@ -146,7 +146,7 @@ def main():
     now = datetime.datetime.now()
     message1 = f'Я начал свою работу: {now.strftime("%d-%m-%Y %H:%M")}'
     current_timestamp = int(time.time()) - 60 * 60 * 24
-    start, send, send1, oldstatus = True, False, False, ''
+    start, send, oldstatus = True, False, ''
     while True:
         try:
             if start:
@@ -154,7 +154,7 @@ def main():
                 logging.info(f'Сообщение в Telegram отправлено: {message1}')
             response = get_api_answer(current_timestamp)
             homeworks_info = check_response(response)
-            if len(homeworks_info) == 0 and send == False:
+            if len(homeworks_info) == 0 and not send:
                 logging.info('Нет работ на проверку')
                 send_message(bot, 'Нет работ на проверку')
                 send = True
